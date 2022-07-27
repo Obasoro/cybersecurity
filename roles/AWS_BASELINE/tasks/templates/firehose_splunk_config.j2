@@ -1,0 +1,34 @@
+{
+  "HECEndpoint": "https://http-inputs-firehose-aetv.splunkcloud.com/services/collector/event",
+  "HECEndpointType": "Raw",
+  "HECToken": "A5B267AC-5B62-4D20-9624-62CA8D07CDF6",
+  "HECAcknowledgmentTimeoutInSeconds": 180,
+  "RetryOptions": {
+    "DurationInSeconds": 300
+  },
+  "S3BackupMode": "FailedEventsOnly",
+  "S3Configuration": {
+    "RoleARN": "{{ firehose_role.iam_role.arn }}",
+    "BucketARN": "arn:aws:s3:::{{ cspmfirehosebucket.name }}",
+    "Prefix": "",
+    "ErrorOutputPrefix": "",
+    "BufferingHints": {
+      "SizeInMBs": 5,
+      "IntervalInSeconds": 300
+    },
+    "CompressionFormat": "GZIP",
+    "EncryptionConfiguration": {
+      "NoEncryptionConfig": "NoEncryption"
+    },
+    "CloudWatchLoggingOptions": {
+      "Enabled": false
+    }
+  },
+  "ProcessingConfiguration": {
+    "Enabled": false,
+    "Processors": []
+  },
+  "CloudWatchLoggingOptions": {
+    "Enabled": false
+  }
+}

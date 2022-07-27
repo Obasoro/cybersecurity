@@ -1,0 +1,48 @@
+---
+- name: Create Loggroup role
+  community.aws.iam_role:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    name: cspm_cw_loggrp_role
+    assume_role_policy_document: "{{ lookup('file','policies/iam_loggroup_policy.json') }}"
+    managed_policies:
+      - "{{ managed_policy_loggrps.policy.arn }}"
+    state: present
+  register: loggrp_role
+
+- name: Create SNS Subscription role for Kinesis Firehose
+  community.aws.iam_role:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    name: cspm_sns_role
+    assume_role_policy_document: "{{ lookup('file','policies/iam_sns_policy.json') }}"
+    managed_policies:
+      - arn:aws:iam::aws:policy/AmazonKinesisFirehoseFullAccess
+    state: present
+  register: sns_firehose_role
+
+- name: Create Kinesis Firehose role
+  community.aws.iam_role:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    name: cspm_kinesis_role
+    assume_role_policy_document: "{{ lookup('file','policies/iam_firehose_policy.json') }}"
+    managed_policies:
+      - "{{ managed_policy_kinesis.policy.arn }}"
+    state: present
+  register: firehose_role
+
+- name: Create VPC FlowLog role
+  community.aws.iam_role:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    name: cspm_vpc_flowlog_role
+    assume_role_policy_document: "{{ lookup('file','policies/vpc_flowlog_policy.json') }}"
+    managed_policies:
+      - "{{ managed_policy_vpc_flowlogs.policy.arn }}"
+    state: present
+  register: vpc_flowlog_role

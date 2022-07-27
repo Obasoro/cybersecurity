@@ -1,0 +1,38 @@
+---
+- name: Create IAM Managed Policy for loggroup role
+  community.aws.iam_managed_policy:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    policy_name: "cspm-ctcw-policy"
+    policy_description: "Managed policy for cspm loggroup role"
+    policy: "{{ lookup('template', 'policies/cspm_loggrp_policy.json') }}"
+    state: present
+  register: managed_policy_loggrps
+
+- name: Create Config file for Firehose Managed Policy
+  template: 
+    src: /runner/project/roles/AWS_BASELINE/tasks/templates/cspm_kinesis_policy.j2
+    dest: /runner/project/roles/AWS_BASELINE/tasks/policies/cspm_kinesis_policy.json
+
+- name: Create Firehose Managed Policy
+  community.aws.iam_managed_policy:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    policy_name: "cspm-kinesis-policy"
+    policy_description: "Managed policy for cspm kinesis role"
+    policy: "{{ lookup('template', 'policies/cspm_kinesis_policy.json') }}"
+    state: present
+  register: managed_policy_kinesis
+
+- name: Create VPC FlowLog Policy
+  community.aws.iam_managed_policy:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    policy_name: "cspm-vpcflowlog-loggroup-policy"
+    policy_description: "Managed policy for Allowing VPCs to send flow logs to cspm log group"
+    policy: "{{ lookup('template', 'policies/cspm_vpc_flowlog_policy.json') }}"
+    state: present
+  register: managed_policy_vpc_flowlogs

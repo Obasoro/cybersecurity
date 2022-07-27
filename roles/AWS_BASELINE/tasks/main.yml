@@ -1,0 +1,39 @@
+---
+- name: Assume role for target account
+  community.aws.sts_assume_role:
+    role_arn: "arn:aws:iam::{{ lookup('env', 'AWS_ACCOUNT_TARGET') }}:role/Sentinal"
+    role_session_name: "someRoleSession"
+  register: assumed_role
+
+- name: Create IAM Policies
+  import_tasks: create_iam_policies.yml
+
+- name: Create IAM Roles
+  import_tasks: create_iam_roles.yml
+
+- name: Create S3 Buckets
+  import_tasks: create_s3_buckets.yml
+
+- name: Get Central CloudTrail
+  import_tasks: get_central_cloudtrail.yml
+
+- name: Get Central Cloudtrail Log Group Name
+  import_tasks: get_log_group.yml
+
+- name: Create Log Groups
+  import_tasks: create_cloudwatch_loggroup.yml
+
+- name: Create Firehose
+  import_tasks: create_firehose.yml
+
+- name: Create SNS for CIS Benchmarks
+  import_tasks: create_sns_topic.yml
+
+- name: CIS Monitoring Benchmark 4.x
+  import_tasks: monitoring4.x.yml
+
+- name: CIS Logging Benchmark 3.x
+  import_tasks: logging3.x.yml
+
+- name: CIS Networking Benchmark 5.x
+  import_tasks: networking5.x.yml

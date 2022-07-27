@@ -1,0 +1,481 @@
+---
+- name: "4.1 Create metric filter for unauthorized_api_calls_alarm metric"
+  community.aws.cloudwatchlogs_log_group_metric_filter:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    log_group_name: "{{ cw_loggrp }}"
+    state: present
+    filter_name: "unauthorized_api_calls_metric"
+    filter_pattern: '{ ($.errorCode = "*UnauthorizedOperation") || ($.errorCode = "AccessDenied*") || ($.sourceIPAddress!="delivery.logs.amazonaws.com") || ($.eventName!="HeadBucket") }'
+    metric_transformation:
+      metric_name: "unauthorized_api_calls_metric"
+      metric_namespace: "CISBenchmark4.1"
+      metric_value: 1
+
+- name: "4.1 Create metric alarm for unauthorized_api_calls_alarm metric"
+  community.aws.ec2_metric_alarm:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    name: "unauthorized_api_calls_alarm"
+    description: "unauthorized_api_calls_alarm"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    metric: "unauthorized_api_calls_metric"
+    statistic: Sum
+    period: 300
+    threshold: 1
+    comparison: "GreaterThanOrEqualToThreshold"
+    evaluation_periods: 1
+    namespace: "CISBenchmark4.1"
+    alarm_actions: "{{ sns.sns_arn }}"
+
+- name: "4.2 Create metric filter for no_mfa_console_signin_metric metric"
+  community.aws.cloudwatchlogs_log_group_metric_filter:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    state: present
+    log_group_name: "{{ cw_loggrp }}"
+    filter_name: "no_mfa_console_signin_metric"
+    filter_pattern: '{ ($.eventName = "ConsoleLogin") && ($.additionalEventData.MFAUsed != "Yes") && ($.userIdentity.type = "IAMUser") && ($.responseElements.ConsoleLogin = "Success") }'
+    metric_transformation:
+      metric_name: "no_mfa_console_signin_metric"
+      metric_namespace: "CISBenchmark4.2"
+      metric_value: 1
+
+- name: "4.2 Create metric alarm for no_mfa_console_signin_alarm metric"
+  community.aws.ec2_metric_alarm:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    name: "no_mfa_console_signin_alarm"
+    description: "no_mfa_console_signin_alarm"
+    metric: "no_mfa_console_signin_metric"
+    statistic: Sum
+    period: 300
+    threshold: 1
+    comparison: "GreaterThanOrEqualToThreshold"
+    evaluation_periods: 1
+    namespace: "CISBenchmark4.2"
+    alarm_actions: "{{ sns.sns_arn }}"
+
+- name: "4.3 Create metric filter for root_usage_metric metric"
+  community.aws.cloudwatchlogs_log_group_metric_filter:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    state: present
+    log_group_name: "{{ cw_loggrp }}"
+    filter_name: "root_usage_metric"
+    filter_pattern: '{ $.userIdentity.type = "Root" && $.userIdentity.invokedBy NOT EXISTS && $.eventType != "AwsServiceEvent" }'
+    metric_transformation:
+      metric_name: "root_usage_metric"
+      metric_namespace: "CISBenchmark4.3"
+      metric_value: 1
+
+- name: "4.3 Create metric alarm for root_usage_alarm metric"
+  community.aws.ec2_metric_alarm:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    name: "root_usage_alarm"
+    description: "root_usage_alarm"
+    metric: "root_usage_metric"
+    statistic: Sum
+    period: 300
+    threshold: 1
+    comparison: "GreaterThanOrEqualToThreshold"
+    evaluation_periods: 1
+    namespace: "CISBenchmark4.3"
+    alarm_actions: "{{ sns.sns_arn }}"
+
+- name: "4.4 Create metric filter for iam_changes_metric metric"
+  community.aws.cloudwatchlogs_log_group_metric_filter:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    state: present
+    log_group_name: "{{ cw_loggrp }}"
+    filter_name: "iam_changes_metric"
+    filter_pattern: '{ ($.eventName=DeleteGroupPolicy) || ($.eventName=DeleteRolePolicy) || ($.eventName=DeleteUserPolicy) || ($.eventName=PutGroupPolicy) || ($.eventName=PutRolePolicy) || ($.eventName=PutUserPolicy) || ($.eventName=CreatePolicy) || ($.eventName=DeletePolicy) || ($.eventName=CreatePolicyVersion) || ($.eventName=DeletePolicyVersion) || ($.eventName=AttachRolePolicy) || ($.eventName=DetachRolePolicy) || ($.eventName=AttachUserPolicy) || ($.eventName=DetachUserPolicy) || ($.eventName=AttachGroupPolicy) || ($.eventName=DetachGroupPolicy) }'
+    metric_transformation:
+      metric_name: "iam_changes_metric"
+      metric_namespace: "CISBenchmark4.4"
+      metric_value: 1
+
+- name: "4.4 Create metric alarm for iam_changes_alarm metric"
+  community.aws.ec2_metric_alarm:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    name: "iam_changes_alarm"
+    description: "iam_changes_alarm"
+    metric: "iam_changes_metric"
+    statistic: Sum
+    period: 300
+    threshold: 1
+    comparison: "GreaterThanOrEqualToThreshold"
+    evaluation_periods: 1
+    namespace: "CISBenchmark4.4"
+    alarm_actions: "{{ sns.sns_arn }}"
+
+- name: "4.5 Create metric filter for cloudtrail_cfg_changes_metric metric"
+  community.aws.cloudwatchlogs_log_group_metric_filter:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    state: present 
+    log_group_name: "{{ cw_loggrp }}"
+    filter_name: "cloudtrail_cfg_changes_metric"
+    filter_pattern: '{ ($.eventName = CreateTrail) || ($.eventName = UpdateTrail) || ($.eventName = DeleteTrail) || ($.eventName = StartLogging) || ($.eventName = StopLogging) }'
+    metric_transformation:
+      metric_name: "cloudtrail_cfg_changes_metric"
+      metric_namespace: "CISBenchmark4.5"
+      metric_value: 1
+
+- name: "4.5 Create metric alarm for cloudtrail_cfg_changes_alarm metric"
+  community.aws.ec2_metric_alarm:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    name: "cloudtrail_cfg_changes_alarm"
+    description: "cloudtrail_cfg_changes_alarm"
+    metric: "cloudtrail_cfg_changes_metric"
+    statistic: Sum
+    period: 300
+    threshold: 1
+    comparison: "GreaterThanOrEqualToThreshold"
+    evaluation_periods: 1
+    namespace: "CISBenchmark4.5"
+    alarm_actions: "{{ sns.sns_arn }}"
+
+- name: "4.6 Create metric filter for console_signin_failure_metric metric"
+  community.aws.cloudwatchlogs_log_group_metric_filter:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    state: present 
+    log_group_name: "{{ cw_loggrp }}"
+    filter_name: "console_signin_failure_metric"
+    filter_pattern: '{($.eventName=ConsoleLogin) && ($.errorMessage="Failed authentication")}'
+    metric_transformation:
+      metric_name: "console_signin_failure_metric"
+      metric_namespace: "CISBenchmark4.6"
+      metric_value: 1
+
+- name: "4.6 Create metric alarm for console_signin_failure_alarm metric"
+  community.aws.ec2_metric_alarm:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    name: "console_signin_failure_alarm"
+    description: "console_signin_failure_alarm"
+    metric: "console_signin_failure_metric"
+    statistic: Sum
+    period: 300
+    threshold: 1
+    comparison: "GreaterThanOrEqualToThreshold"
+    evaluation_periods: 1
+    namespace: "CISBenchmark4.6"
+    alarm_actions: "{{ sns.sns_arn }}"
+
+- name: "4.7 Create metric filter for disable_or_delete_cmk_changes_metric metric"
+  community.aws.cloudwatchlogs_log_group_metric_filter:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    state: present 
+    log_group_name: "{{ cw_loggrp }}"
+    filter_name: "disable_or_delete_cmk_changes_metric"
+    filter_pattern: '{($.eventSource = kms.amazonaws.com) && (($.eventName=DisableKey)||($.eventName=ScheduleKeyDeletion)) }'
+    metric_transformation:
+      metric_name: "disable_or_delete_cmk_changes_metric"
+      metric_namespace: "CISBenchmark4.7"
+      metric_value: 1
+
+- name: "4.7 Create metric alarm for no_mfa_console_signin_alarm metric"
+  community.aws.ec2_metric_alarm:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    name: "disable_or_delete_cmk_changes_alarm"
+    description: "disable_or_delete_cmk_changes_alarm"
+    metric: "disable_or_delete_cmk_changes_metric"
+    statistic: Sum
+    period: 300
+    threshold: 1
+    comparison: "GreaterThanOrEqualToThreshold"
+    evaluation_periods: 1
+    namespace: "CISBenchmark4.7"
+    alarm_actions: "{{ sns.sns_arn }}"
+
+- name: "4.8 Create metric filter for s3_bucket_policy_changes_metric metric"
+  community.aws.cloudwatchlogs_log_group_metric_filter:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    state: present    
+    log_group_name: "{{ cw_loggrp }}"
+    filter_name: "s3_bucket_policy_changes_metric"
+    filter_pattern: '{($.eventSource = s3.amazonaws.com) && (($.eventName = PutBucketAcl) || ($.eventName = PutBucketPolicy) || ($.eventName = PutBucketCors) || ($.eventName = PutBucketLifecycle) || ($.eventName = PutBucketReplication) || ($.eventName = DeleteBucketPolicy) || ($.eventName = DeleteBucketCors) || ($.eventName = DeleteBucketLifecycle) || ($.eventName = DeleteBucketReplication)) }'
+    metric_transformation:
+      metric_name: "s3_bucket_policy_changes_metric"
+      metric_namespace: "CISBenchmark4.8"
+      metric_value: 1
+
+- name: "4.8 Create metric alarm for s3_bucket_policy_changes_alarm metric"
+  community.aws.ec2_metric_alarm:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    name: "s3_bucket_policy_changes_alarm"
+    description: "s3_bucket_policy_changes_alarm"
+    metric: "s3_bucket_policy_changes_metric"
+    statistic: Sum
+    period: 300
+    threshold: 1
+    comparison: "GreaterThanOrEqualToThreshold"
+    evaluation_periods: 1
+    namespace: "CISBenchmark4.8"
+    alarm_actions: "{{ sns.sns_arn }}"
+
+- name: "4.9 Create metric filter for aws_config_changes_metric metric"
+  community.aws.cloudwatchlogs_log_group_metric_filter:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    state: present
+    log_group_name: "{{ cw_loggrp }}"
+    filter_name: "aws_config_changes_metric"
+    filter_pattern: '{ ($.eventSource = config.amazonaws.com) && (($.eventName=StopConfigurationRecorder)||($.eventName=DeleteDeliveryChannel) ||($.eventName=PutDeliveryChannel)||($.eventName=PutConfigurationRecorder)) }'
+    metric_transformation:
+      metric_name: "aws_config_changes_metric"
+      metric_namespace: "CISBenchmark4.9"
+      metric_value: 1
+
+- name: "4.9 Create metric alarm for aws_config_changes_alarm metric"
+  community.aws.ec2_metric_alarm:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    name: "aws_config_changes_alarm"
+    description: "aws_config_changes_alarm"
+    metric: "aws_config_changes_metric"
+    statistic: Sum
+    period: 300
+    threshold: 1
+    comparison: "GreaterThanOrEqualToThreshold"
+    evaluation_periods: 1
+    namespace: "CISBenchmark4.9"
+    alarm_actions: "{{ sns.sns_arn }}"
+
+- name: "4.10 Create metric filter for security_group_changes_metric metric"
+  community.aws.cloudwatchlogs_log_group_metric_filter:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    state: present
+    log_group_name: "{{ cw_loggrp }}"
+    filter_name: "security_group_changes_metric"
+    filter_pattern: '{ ($.eventName = AuthorizeSecurityGroupIngress) || ($.eventName = AuthorizeSecurityGroupEgress) || ($.eventName = RevokeSecurityGroupIngress) || ($.eventName = RevokeSecurityGroupEgress) || ($.eventName = CreateSecurityGroup) || ($.eventName = DeleteSecurityGroup) }'
+    metric_transformation:
+      metric_name: "security_group_changes_metric"
+      metric_namespace: "CISBenchmark4.10"
+      metric_value: 1
+
+- name: "4.10 Create metric alarm for security_group_changes_alarm metric"
+  community.aws.ec2_metric_alarm:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    name: "security_group_changes_alarm"
+    description: "security_group_changes_alarm"
+    metric: "security_group_changes_metric"
+    statistic: Sum
+    period: 300
+    threshold: 1
+    comparison: "GreaterThanOrEqualToThreshold"
+    evaluation_periods: 1
+    namespace: "CISBenchmark4.10"
+    alarm_actions: "{{ sns.sns_arn }}"
+
+- name: "4.11 Create metric filter for nacl_changes_metric metric"
+  community.aws.cloudwatchlogs_log_group_metric_filter:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    state: present
+    log_group_name: "{{ cw_loggrp }}"
+    filter_name: "nacl_changes_metric"
+    filter_pattern: "{ ($.eventName = CreateNetworkAcl) || ($.eventName = CreateNetworkAclEntry) || ($.eventName = DeleteNetworkAcl) || ($.eventName = DeleteNetworkAclEntry) || ($.eventName = ReplaceNetworkAclEntry) || ($.eventName = ReplaceNetworkAclAssociation) }"
+    metric_transformation:
+      metric_name: "nacl_changes_metric"
+      metric_namespace: "CISBenchmark4.11"
+      metric_value: 1
+
+- name: "4.11 Create metric alarm for nacl_changes_alarm metric"
+  community.aws.ec2_metric_alarm:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    name: "nacl_changes_alarm"
+    description: "nacl_changes_alarm"
+    metric: "nacl_changes_metric"
+    statistic: Sum
+    period: 300
+    threshold: 1
+    comparison: "GreaterThanOrEqualToThreshold"
+    evaluation_periods: 1
+    namespace: "CISBenchmark4.11"
+    alarm_actions: "{{ sns.sns_arn }}"
+
+- name: "4.12 Create metric filter for network_gw_changes_metric metric"
+  community.aws.cloudwatchlogs_log_group_metric_filter:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    state: present
+    log_group_name: "{{ cw_loggrp }}"
+    filter_name: "network_gw_changes_metric"
+    filter_pattern: '{ ($.eventName = CreateCustomerGateway) || ($.eventName = DeleteCustomerGateway) || ($.eventName = AttachInternetGateway) || ($.eventName = CreateInternetGateway) || ($.eventName = DeleteInternetGateway) || ($.eventName = DetachInternetGateway) }'
+    metric_transformation:
+      metric_name: "network_gw_changes_metric"
+      metric_namespace: "CISBenchmark4.12"
+      metric_value: 1
+
+- name: "4.12 Create metric alarm for network_gw_changes_alarm metric"
+  community.aws.ec2_metric_alarm:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    name: "network_gw_changes_alarm"
+    description: "network_gw_changes_alarm"
+    metric: "network_gw_changes_metric"
+    statistic: Sum
+    period: 300
+    threshold: 1
+    comparison: "GreaterThanOrEqualToThreshold"
+    evaluation_periods: 1
+    namespace: "CISBenchmark4.12"
+    alarm_actions: "{{ sns.sns_arn }}"
+
+- name: "4.13 Create metric filter for route_table_changes_metric metric"
+  community.aws.cloudwatchlogs_log_group_metric_filter:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    state: present
+    log_group_name: "{{ cw_loggrp }}"
+    filter_name: "route_table_changes_metric"
+    filter_pattern: '{ ($.eventName = CreateRoute) || ($.eventName = CreateRouteTable) || ($.eventName = ReplaceRoute) || ($.eventName = ReplaceRouteTableAssociation)  || ($.eventName = DeleteRouteTable) || ($.eventName = DeleteRoute) ||  ($.eventName = DisassociateRouteTable) }'
+    metric_transformation:
+      metric_name: "route_table_changes_metric"
+      metric_namespace: "CISBenchmark4.13"
+      metric_value: 1
+
+- name: "4.13 Create metric alarm for route_table_changes_alarm metric"
+  community.aws.ec2_metric_alarm:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    name: "route_table_changes_alarm"
+    description: "route_table_changes_alarm"
+    metric: "route_table_changes_metric"
+    statistic: Sum
+    period: 300
+    threshold: 1
+    comparison: "GreaterThanOrEqualToThreshold"
+    evaluation_periods: 1
+    namespace: "CISBenchmark4.13"
+    alarm_actions: "{{ sns.sns_arn }}"
+
+- name: "4.14 Create metric filter for vpc_changes_metric metric"
+  community.aws.cloudwatchlogs_log_group_metric_filter:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    state: present
+    log_group_name: "{{ cw_loggrp }}"
+    filter_name: "vpc_changes_metric"
+    filter_pattern: '{ ($.eventName = CreateVpc) || ($.eventName = DeleteVpc) || ($.eventName = ModifyVpcAttribute) || ($.eventName = AcceptVpcPeeringConnection) || ($.eventName = CreateVpcPeeringConnection) || ($.eventName = DeleteVpcPeeringConnection) || ($.eventName = RejectVpcPeeringConnection) || ($.eventName = AttachClassicLinkVpc) || ($.eventName = DetachClassicLinkVpc) || ($.eventName = DisableVpcClassicLink) || ($.eventName = EnableVpcClassicLink) }'
+    metric_transformation:
+      metric_name: "vpc_changes_metric"
+      metric_namespace: "CISBenchmark4.14"
+      metric_value: 1
+
+- name: "4.14 Create metric alarm for vpc_changes_alarm metric"
+  community.aws.ec2_metric_alarm:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}" 
+    name: "vpc_changes_alarm"
+    description: "vpc_changes_alarm"
+    metric: "vpc_changes_metric"
+    statistic: Sum
+    period: 300
+    threshold: 1
+    comparison: "GreaterThanOrEqualToThreshold"
+    evaluation_periods: 1
+    namespace: "CISBenchmark4.14"
+    alarm_actions: "{{ sns.sns_arn }}"
+
+- name: "4.15 Create metric filter for organizations_changes metric"
+  community.aws.cloudwatchlogs_log_group_metric_filter:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    state: present
+    log_group_name: "{{ cw_loggrp }}"
+    filter_name: "organizations_changes"
+    filter_pattern: '{ ($.eventSource = organizations.amazonaws.com) && (($.eventName = "AcceptHandshake") || ($.eventName = "AttachPolicy") || ($.eventName = "CreateAccount") || ($.eventName = "CreateOrganizationalUnit") || ($.eventName = "CreatePolicy") || ($.eventName = "DeclineHandshake") || ($.eventName = "DeleteOrganization") || ($.eventName = "DeleteOrganizationalUnit") || ($.eventName = "DeletePolicy") || ($.eventName = "DetachPolicy") || ($.eventName = "DisablePolicyType") || ($.eventName = "EnablePolicyType") || ($.eventName = "InviteAccountToOrganization") || ($.eventName = "LeaveOrganization") || ($.eventName = "MoveAccount") || ($.eventName = "RemoveAccountFromOrganization") || ($.eventName = "UpdatePolicy") || ($.eventName = "UpdateOrganizationalUnit")) }'
+    metric_transformation:
+      metric_name: "organizations_changes"
+      metric_namespace: "CISBenchmark4.15"
+      metric_value: 1
+
+- name: "4.15 Create metric alarm for organizations_alarm metric"
+  community.aws.ec2_metric_alarm:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    name: "organizations_alarm"
+    description: "organizations_alarm"    
+    metric: "organizations_changes"
+    statistic: Sum
+    period: 300
+    threshold: 1
+    comparison: "GreaterThanOrEqualToThreshold"
+    evaluation_periods: 1
+    namespace: "CISBenchmark4.15"
+    alarm_actions: "{{ sns.sns_arn }}"
+

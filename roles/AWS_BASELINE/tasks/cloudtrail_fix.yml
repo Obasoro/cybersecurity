@@ -1,0 +1,125 @@
+---
+- name: Get Assumed Role Credentials for AWS CLI
+  shell: aws sts assume-role --role-arn arn:aws:iam::{{ lookup('env', 'AWS_ACCOUNT_TARGET') }}:role/Sentinal --role-session-name AWSCLI-Session
+  register: assumed_role_vars
+
+- set_fact: assumed_role_credentials="{{ assumed_role_vars.stdout|from_json }}"
+
+#- name: Get List of Cloudtrails
+#  shell: |
+#    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+#    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+#    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+#    aws cloudtrail describe-trails --output json | jq '.trailList'
+#  no_log: true
+#  register: listtrails
+
+#- set_fact: trails="{{ listtrails.stdout|from_json }}"
+
+#- name: debug listout
+#  debug:
+#    msg: "{{ trails }}"
+
+- name: Get Central Cloudtrail Name
+  shell: |
+    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+    aws cloudtrail describe-trails --output json | jq '.trailList[].Name' | grep AZV-CLT | awk -F'"' '{ print $2 }'
+  #when: item.Name.find("AZV-CLT") != -1
+  no_log: true
+  #with_items: "{{ trails }}"
+  register: central_ct_name
+
+- name: debug listout
+  debug:
+    msg: "{{ central_ct_name.stdout }}"
+
+- name: Get Central Cloudtrail Details
+  shell: |
+    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+    aws cloudtrail get-trail --name {{ central_ct_name.stdout }} --output json
+  #when: item.Name.find("AZV-CLT") != -1
+  #no_log: true
+  #with_items: "{{ trails }}"
+  register: central_cloud_trail
+
+- set_fact: cspmcloudtrail="{{ central_cloud_trail.stdout|from_json }}"
+
+- name: debug cspmcloudtrail
+  debug:
+    msg: "{{ cspmcloudtrail.Trail.S3BucketName }}"
+
+
+# - name: 3.6 Ensure S3 bucket access logging is enabled on the CloudTrail S3 bucket
+#   shell: |
+#     export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+#     export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+#     export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+#     aws s3api get-bucket-logging --bucket {{ cspmcloudtrail.Trail.S3BucketName }} --output json
+#   #no_log: true
+#   register: ctbucketconfig
+# TASK [AWS_BASELINE : 3.6 Ensure S3 bucket access logging is enabled on the CloudTrail S3 bucket] ***
+# fatal: [localhost]: FAILED! => {"changed": true, "cmd": "export AWS_ACCESS_KEY_ID=ASIATKJMR6GOYIFWHG4E\nexport AWS_SECRET_ACCESS_KEY=CpJfpFcIWp6sYISzoj56c2lchI+h783/NBBpy6ki\nexport AWS_SESSION_TOKEN=FwoGZXIvYXdzEGkaDGft0ur5lmPamcQAHSKyAe2E1JOAVwsAUrcIV9uHJXBm+XFaoYTKnmIpTe1mBhRYTpzVEN5zmzICk1OBt+wafAvZt66f9Uvdrmaz4nqYjiyXg2p6xjdhC/vZtGw0ZsFaHhsXF4rBlIwkEHa3iD8t6TsccxDjmdgSgN/mGv5mQnooKhMb9YIwPo1wtHTMf0ttzXcc0EByIFlTeUmy/UApYHnntzg2XE7g4PZpexheOkIjSqWfFrxeioQyZGhOFa479sAow+mdkQYyLbAO7RZZBWPXZhnTvS05ZNsl49nm7kXxF9fnpKcNEiOc+RfUeBtVZCBF4zTcDQ==\naws s3api get-bucket-logging --bucket ae-tops-cltr-prod --output json\n", "delta": "0:00:00.743734", "end": "2022-03-08 15:22:46.726498", "msg": "non-zero return code", "rc": 255, "start": "2022-03-08 15:22:45.982764", "stderr": "\nAn error occurred (AccessDenied) when calling the GetBucketLogging operation: Access Denied", "stderr_lines": ["", "An error occurred (AccessDenied) when calling the GetBucketLogging operation: Access Denied"], "stdout": "", "stdout_lines": []}
+
+#cts3bucketpolicy
+
+#create ct s3 bucket, remove?
+
+#if [[ -z `aws s3api get-bucket-logging --bucket {{ cspmcloudtrail.Trail.S3BucketName }} --output json | jq '.LoggingEnabled.TargetBucket'` ]] ; then aws s3api put-bucket-logging --bucket {{ cspmcloudtrail.Trail.S3BucketName }} --bucket-logging-status file:///runner/project/roles/AWS_BASELINE/tasks/bucket_logging.json ; fi
+
+#- name: 3.4 Ensure CloudTrail trails are integrated with CloudWatch Logs
+#  community.aws.cloudtrail:
+#    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+#    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+#    security_token: "{{ assumed_role.sts_creds.session_token }}"
+#    state: present
+#    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+#    s3_bucket_name: "{{ item.S3BucketName }}"
+#    cloudwatch_logs_role_arn: "{{ loggrp_role.iam_role.arn }}"
+#    cloudwatch_logs_log_group_arn: "{{ cw_loggrp.arn }}"
+#    name: "{{ item.Name }}"
+#  when: item.Name.find("AZV-CLT") != -1
+#  no_log: true
+#  with_items: "{{ trails }}"
+
+
+
+
+
+#- name: Get Name of Central Cloudtrail
+#  shell: |
+#    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+#    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+#    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+#    aws cloudtrail describe-trails --output json | jq '.trailList[].Name' | grep AZV | awk -F'"' '{ print $2 }'
+#  no_log: true
+#  register: central_cloudtrail_name
+
+#- name: debug central_cloudtrail_name
+#  debug:
+#    msg: "{{ central_cloudtrail_name.stdout }}"
+
+
+#- name: Create Multi Region Cloudtrail
+#  community.aws.cloudtrail:
+#    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+#    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+#    security_token: "{{ assumed_role.sts_creds.session_token }}"
+#    state: present
+#    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+#    cloudwatch_logs_role_arn: "{{ loggrp_role.iam_role.arn }}"
+#    cloudwatch_logs_log_group_arn: "{{ cw_loggrp.arn }}"
+#    name: "{{ central_cloudtrail_name.stdout }}"
+#    is_multi_region_trail: yes
+#    enable_log_file_validation: yes
+##    s3_bucket_name: '{{ cts3bucket.name }}'
+#  register: cspmcloudtrail
+
+
+
+
+
+  

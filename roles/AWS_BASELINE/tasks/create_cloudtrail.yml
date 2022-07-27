@@ -1,0 +1,35 @@
+---
+- name: Get Assumed Role Credentials for AWS CLI
+  shell: aws sts assume-role --role-arn arn:aws:iam::{{ lookup('env', 'AWS_ACCOUNT_TARGET') }}:role/Sentinal --role-session-name AWSCLI-Session
+  register: assumed_role_vars
+
+- set_fact: assumed_role_credentials="{{ assumed_role_vars.stdout|from_json }}"
+
+- name: Get Name of Central Cloudtrail
+  shell: |
+    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+    aws cloudtrail describe-trails --output json | jq '.trailList[].Name' | grep AZV | awk -F'"' '{ print $2 }'
+  no_log: true
+  register: central_cloudtrail_name
+
+- name: debug central_cloudtrail_name
+  debug:
+    msg: "{{ central_cloudtrail_name.stdout }}"
+
+
+- name: Create Multi Region Cloudtrail
+  community.aws.cloudtrail:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    state: present
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    cloudwatch_logs_role_arn: "{{ loggrp_role.iam_role.arn }}"
+    cloudwatch_logs_log_group_arn: "{{ cw_loggrp.arn }}"
+    name: {{ central_cloudtrail_name.stdout }}
+    is_multi_region_trail: yes
+    enable_log_file_validation: yes
+    s3_bucket_name: '{{ cts3bucket.name }}'
+  register: cspmcloudtrail

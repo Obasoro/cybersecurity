@@ -1,0 +1,74 @@
+---
+- name: Get Assumed Role Credentials for AWS CLI
+  shell: aws sts assume-role --role-arn arn:aws:iam::{{ lookup('env', 'AWS_ACCOUNT_TARGET') }}:role/Sentinal --role-session-name AWSCLI-Session
+  register: assumed_role_vars
+
+- set_fact: assumed_role_credentials="{{ assumed_role_vars.stdout|from_json }}"
+
+- name: Get Central Cloudtrail Name
+  shell: |
+    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+    aws cloudtrail describe-trails --output json | jq '.trailList[].Name' | grep 'AZV-CL\|azo-cl\|AZ0-CL\|AZO-CL\|AZS-CL\|AZI-CL\|developerSandbox' | awk -F'"' '{ print $2 }'
+  no_log: true
+  register: central_ct_name
+
+- name: debug cspmcloudtrail
+  debug:
+    msg: "{{ central_ct_name }}"
+
+- name: Get Central Cloudtrail Details
+  shell: |
+    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+    aws cloudtrail get-trail --name {{ central_ct_name.stdout }} --output json
+  register: central_cloud_trail
+
+- set_fact: cspmcloudtrail="{{ central_cloud_trail.stdout|from_json }}"
+
+# - name: debug cspmcloudtrail
+#   debug:
+#     msg: "{{ cspmcloudtrail.Trail.CloudWatchLogsLogGroupArn }}"
+
+# - name: debug cspmcloudtrail
+#   debug:
+#     msg: "{{ cspmcloudtrail.Trail.CloudWatchLogsRoleArn }}"
+
+- name: delete a trail
+  community.aws.cloudtrail:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    state: absent
+    name: cspmcloudtrail
+
+
+#- name: debug cspmcloudtrail
+#  debug:
+#    msg: "{{ cspmcloudtrail.Trail.S3BucketName }}"
+
+
+#TASK [AWS_BASELINE : debug cspmcloudtrail] *************************************
+#ok: [localhost] => {
+#    "msg": {
+#        "Trail": {
+#            "CloudWatchLogsLogGroupArn": "arn:aws:logs:us-east-1:228263588253:log-group:CloudTrail/cltsec-pctrl-log-grp:*",
+#            "CloudWatchLogsRoleArn": "arn:aws:iam::228263588253:role/CloudTrail_CloudWatchLogs_Role",
+#            "HasCustomEventSelectors": false,
+#            "HasInsightSelectors": false,
+#            "HomeRegion": "us-east-1",
+#            "IncludeGlobalServiceEvents": true,
+#            "IsMultiRegionTrail": true,
+#            "IsOrganizationTrail": false,
+#            "KmsKeyId": "arn:aws:kms:us-east-1:228263588253:key/85ed9101-d937-4e24-a62f-64811f30d5b7",
+#            "LogFileValidationEnabled": true,
+#            "Name": "AZV-CLTSEC-PCLTR1",
+#            "S3BucketName": "ae-tops-cltr-prod",
+#            "TrailARN": "arn:aws:cloudtrail:us-east-1:228263588253:trail/AZV-CLTSEC-PCLTR1"
+#        }
+#    }
+#}
+
+#PLAY RECAP *********************************************************************

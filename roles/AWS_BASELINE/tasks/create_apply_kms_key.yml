@@ -1,0 +1,24 @@
+---
+- name: Create Key
+  community.aws.aws_kms:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    alias: cloudtrail-{{ item.Name }}_logs_encryption_key
+    tags:
+      Name: cloudtrail-{{ item.Name }}_logs_encryption_key
+      Purpose: EncryptCloudTrailLogsAtRest
+    policy: "{{ lookup('template', '/runner/project/roles/AWS_BASELINE/tasks/templates/kms_policy.j2') | to_json }}"
+  register: cloudtrailkey
+  
+- name: Apply the key to Cloudtrail
+  community.aws.cloudtrail:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    name: "{{ item.Name }}"
+    state: present
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"           
+    kms_key_id:  "{{ cloudtrailkey.key_id }}"
+    s3_bucket_name: "{{ item.S3BucketName }}"
+# no_log: true

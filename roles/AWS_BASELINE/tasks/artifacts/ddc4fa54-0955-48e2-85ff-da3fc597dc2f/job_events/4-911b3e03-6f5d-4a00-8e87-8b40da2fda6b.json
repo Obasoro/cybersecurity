@@ -1,0 +1,1 @@
+{"event": "verbose", "uuid": "911b3e03-6f5d-4a00-8e87-8b40da2fda6b", "counter": 4, "stdout": "\u001b[0;31mERROR! 'community.aws.sts_assume_role' is not a valid attribute for a Play\u001b[0m", "start_line": 3, "end_line": 4, "runner_ident": "ddc4fa54-0955-48e2-85ff-da3fc597dc2f", "created": "2022-06-24T19:42:21.087583"}

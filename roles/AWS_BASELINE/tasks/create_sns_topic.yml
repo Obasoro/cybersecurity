@@ -1,0 +1,25 @@
+---
+- name: Create SNS topic
+  community.aws.sns_topic:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    name: "cspmsns"
+    state: present
+    display_name: "CSPM event SNS topic"
+  register: sns
+
+- name: Get Assumed Role Credentials for AWS CLI
+  shell: aws sts assume-role --role-arn arn:aws:iam::{{ lookup('env', 'AWS_ACCOUNT_TARGET') }}:role/Sentinal --role-session-name AWSCLI-Session
+  register: assumed_role_vars
+
+- set_fact: assumed_role_credentials="{{ assumed_role_vars.stdout|from_json }}"
+
+- name: Create SNS subscription
+  shell: |
+    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+    aws sns subscribe --topic-arn {{ sns.sns_arn }} --protocol firehose --attributes RawMessageDelivery=false,SubscriptionRoleArn={{ sns_firehose_role.iam_role.arn }} --notification-endpoint {{ firehose.stdout }}
+  register: sns_subscription

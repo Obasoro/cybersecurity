@@ -1,0 +1,23 @@
+---
+- name: Assume role for target account
+  # Assume an existing role (more details: https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html)
+  community.aws.sts_assume_role:
+    role_arn: "arn:aws:iam::{{ lookup('env', 'AWS_ACCOUNT_TARGET') }}:role/Sentinal"
+    role_session_name: "someRoleSession"
+  register: assumed_role
+  
+- name: CIS AWS Account Password policy
+  community.aws.iam_password_policy:
+    state: present
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    min_pw_length: 14
+    require_symbols: true
+    require_numbers: true
+    require_uppercase: true
+    require_lowercase: true
+    allow_pw_change: true
+    pw_max_age: 60
+    pw_reuse_prevent: 24
+    pw_expire: false

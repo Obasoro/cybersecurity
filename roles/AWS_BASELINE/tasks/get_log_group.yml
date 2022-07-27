@@ -1,0 +1,21 @@
+---
+- name: Get Assumed Role Credentials for AWS CLI
+  shell: aws sts assume-role --role-arn arn:aws:iam::{{ lookup('env', 'AWS_ACCOUNT_TARGET') }}:role/Sentinal --role-session-name AWSCLI-Session
+  register: assumed_role_vars
+
+- set_fact: assumed_role_credentials="{{ assumed_role_vars.stdout|from_json }}"
+
+- name: Get Central Cloudtrail Name
+  shell: |
+    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+    aws cloudtrail describe-trails --trail-name-list {{ central_ct_name.stdout }} --output json | jq '.trailList[].CloudWatchLogsLogGroupArn' | awk -F':' '{ print $7 }'
+  no_log: true
+  register: loggroupname
+
+- set_fact: cw_loggrp="{{ loggroupname.stdout }}"
+
+#- name: debug listout
+#  debug:
+#    msg: "{{ cw_loggrp }}"

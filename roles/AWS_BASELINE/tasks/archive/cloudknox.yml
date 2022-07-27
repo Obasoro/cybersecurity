@@ -1,0 +1,19 @@
+---
+- name: "Create Cloudknox role and attach a managed policy called 'IAM_R_KNOX_SECURITY'"
+  community.aws.iam_role:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    name: IAM_R_KNOX_SECURITY
+    assume_role_policy_document:
+      Version: "2012-10-17"
+      Statement:
+        - Action: "sts:AssumeRole"
+          Effect: "Allow"
+          Principal: 
+            AWS: "arn:aws:iam::228263588253:role/IAM_R_KNOX_SECURITY"
+          Condition: {}
+    description: IAM Role for CloudKnox        
+    managed_policies:
+      - arn:aws:iam::aws:policy/SecurityAudit
+    state: present

@@ -1,0 +1,41 @@
+- name: Get Assumed Role Credentials for AWS CLI
+  shell: aws sts assume-role --role-arn arn:aws:iam::{{ lookup('env', 'AWS_ACCOUNT_TARGET') }}:role/Sentinal --role-session-name AWSCLI-Session
+  register: assumed_role_vars
+
+- set_fact: assumed_role_credentials="{{ assumed_role_vars.stdout|from_json }}"
+
+- name: Get Security Group IDs
+  shell: |
+    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+    aws ec2 describe-security-groups --output json |jq '.SecurityGroups'
+  register: secgrpids
+
+- set_fact: grpids="{{ secgrpids.stdout|from_json }}"
+
+#- name: debug secgrpids
+#  debug:
+#    msg: "{{ item.GroupId }}"
+#  with_items: "{{ grpids }}"
+
+- name: 5.1 and 5.2 Ensure No Security Group allows ingress from 0.0.0.0/0 to remote server administration ports
+  shell: |
+    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+    aws ec2 revoke-security-group-ingress --group-id {{ item.GroupId }} --ip-permissions IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=0.0.0.0/0}]
+    aws ec2 revoke-security-group-ingress --group-id {{ item.GroupId }} --ip-permissions IpProtocol=tcp,FromPort=3389,ToPort=3389,IpRanges=[{CidrIp=0.0.0.0/0}]
+  no_log: true
+  with_items: "{{ grpids }}"
+  
+
+# - name: 5.2 Ensure No Security Group allows ingress from 0.0.0.0/0 to remote server administration ports
+#   shell: |
+#     export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+#     export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+#     export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+#     aws ec2 revoke-security-group-ingress --group-id {{ item.GroupId }} --ip-permissions IpProtocol=tcp,FromPort=22,ToPort=22,IpRanges=[{CidrIp=0.0.0.0/0}]
+#       aws ec2 describe-security-groups --group-ids sg-00d027c5e2b27514d --output json --profile cspmss |jq '.SecurityGroups[].IpPermissions[].FromPort' | grep 3389
+#   # no_log: true
+#   with_items: "{{ grpids }}"

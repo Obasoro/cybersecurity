@@ -1,0 +1,35 @@
+---
+- name: Get Assumed Role Credentials for AWS CLI
+  shell: aws sts assume-role --role-arn arn:aws:iam::{{ lookup('env', 'AWS_ACCOUNT_TARGET') }}:role/Sentinal --role-session-name AWSCLI-Session
+  register: assumed_role_vars
+
+- set_fact: assumed_role_credentials="{{ assumed_role_vars.stdout|from_json }}"
+
+- name: Create Log Group
+  community.aws.cloudwatchlogs_log_group:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    state: present
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    log_group_name: vpc_flow_logs
+  register: vpc_flow_logs
+
+- name: Set vpc_flow_log loggroup subscription
+  shell: |
+    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+    aws cloudformation deploy --template-file /runner/project/roles/AWS_BASELINE/tasks/templates/flow_log_splunk_template_dev.yaml  --stack-name "SplunkTrumpet" --capabilities CAPABILITY_IAM
+  #no_log: true
+  ignore_errors: yes
+
+# - name: Create Log Group
+#   community.aws.cloudwatchlogs_log_group:
+#     aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+#     aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+#     security_token: "{{ assumed_role.sts_creds.session_token }}"
+#     state: present
+#     region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+#     log_group_name: cspm_log_group
+#   register: cw_loggrp

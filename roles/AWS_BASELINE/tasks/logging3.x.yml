@@ -1,0 +1,217 @@
+---
+- name: Get Assumed Role Credentials for AWS CLI
+  shell: aws sts assume-role --role-arn arn:aws:iam::{{ lookup('env', 'AWS_ACCOUNT_TARGET') }}:role/Sentinal --role-session-name AWSCLI-Session
+  register: assumed_role_vars
+
+- set_fact: assumed_role_credentials="{{ assumed_role_vars.stdout|from_json }}"
+
+- name: Get List of Cloudtrails
+  shell: |
+    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+    aws cloudtrail describe-trails --output json | jq '.trailList'
+  no_log: true
+  register: listtrails
+
+- set_fact: trails="{{ listtrails.stdout|from_json }}"
+
+- name: 3.1 & 3.2 Ensure Cloudtrail mutli-region & log file validation is enabled
+  community.aws.cloudtrail:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    state: present
+    s3_bucket_name: "{{ cspmcloudtrail.Trail.S3BucketName }}"
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    name: "{{ cspmcloudtrail.Trail.Name }}"
+    is_multi_region_trail: yes
+    enable_log_file_validation: yes
+  no_log: true
+
+#- name: 3.3 Ensure the S3 bucket used to store CloudTrail logs is not publicly accessible
+#  shell: |
+#      export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+#      export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+#      export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+#      aws s3api put-public-access-block --bucket {{ cspmcloudtrail.Trail.S3BucketName }} --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+
+- name: 3.4 Ensure CloudTrail trails are integrated with CloudWatch Logs
+  community.aws.cloudtrail:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    state: present
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    s3_bucket_name: "{{ item.S3BucketName }}"
+    cloudwatch_logs_role_arn: "{{ cspmcloudtrail.Trail.CloudWatchLogsRoleArn }}"
+    cloudwatch_logs_log_group_arn: "{{ cspmcloudtrail.Trail.CloudWatchLogsLogGroupArn }}"
+    name: "{{ item.Name }}"
+  when: item.CloudWatchLogsLogGroupArn is not defined
+  no_log: true
+  with_items: "{{ trails }}"
+
+- name: 3.5 Ensure AWS Config Recording is enabled in all regions
+  community.aws.aws_config_recorder:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    name: default
+    state: present
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    role_arn: arn:aws:iam::{{ lookup('env', 'AWS_ACCOUNT_TARGET') }}:role/aws-service-role/config.amazonaws.com/AWSServiceRoleForConfig
+    recording_group:
+        all_supported: true
+        include_global_types: true
+
+- name: Config Delivery Channel
+  community.aws.aws_config_delivery_channel:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    name: default
+    state: present
+    region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+    sns_topic_arn: "{{ sns.sns_arn }}"
+    s3_bucket: "{{ configbucket.name }}"
+
+- name: 3.5 Enable AWS Config
+  shell: |
+    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+    aws configservice start-configuration-recorder --configuration-recorder-name default
+  register: config
+
+#- name: 3.6 Create s3 access logging config file
+#  template: 
+#    src: /runner/project/roles/AWS_BASELINE/tasks/templates/bucket_logging.j2
+#    dest: /runner/project/roles/AWS_BASELINE/tasks/bucket_logging.json
+
+# - name: 3.6 Ensure S3 bucket access logging is enabled on the CloudTrail S3 bucket
+#   shell: |
+#     export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+#     export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+#     export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+#     aws s3api put-bucket-acl --acl log-delivery-write --bucket {{ cspmcloudtrail.Trail.S3BucketName }}
+#     if [[ -z `aws s3api get-bucket-logging --bucket {{ cspmcloudtrail.Trail.S3BucketName }} --output json | jq '.LoggingEnabled.TargetBucket'` ]] ; then aws s3api put-bucket-logging --bucket {{ cspmcloudtrail.Trail.S3BucketName }} --bucket-logging-status file:///runner/project/roles/AWS_BASELINE/tasks/bucket_logging.json ; fi
+#   no_log: true
+#   register: ctbucketconfig
+
+- name: 3.7 Ensure CloudTrail logs are encrypted at rest using KMS CMKs
+  include: create_apply_kms_key.yml
+  when: item.KmsKeyId is not defined 
+  with_items: "{{ trails }}"
+
+- name: Get List KMS CMK's
+  shell: |
+    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+    aws kms list-keys --output json | jq '.Keys'
+  register: cmklist
+
+- set_fact: keyslist="{{ cmklist.stdout|from_json }}"
+
+- name: 3.8 Ensure rotation for customer created CMKs is enabled
+  shell: |
+     export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+     export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+     export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+     if [[ `aws kms describe-key --key-id {{ item.KeyId }} --output json | jq '.KeyMetadata.KeyManager'` == \"CUSTOMER\" ]] ; then aws kms enable-key-rotation --key-id {{ item.KeyId }} ; fi
+  with_items: "{{ keyslist }}"
+  register: keystatus
+
+- name: Get List of VPCs
+  shell: |
+    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+    aws ec2 describe-vpcs --output json | jq '.Vpcs'
+  register: listvpcs
+
+- set_fact: vpcs="{{ listvpcs.stdout|from_json }}"
+
+- name: Get List VPCIDs with Active Flowlogs
+  shell: |
+    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+    aws ec2 describe-flow-logs --output json | jq '.FlowLogs[].ResourceId'
+  register: flowlogslist
+
+- set_fact: flowlogs="{{ flowlogslist.stdout|to_json }}"
+
+- name: Get List FlowLogIDs
+  shell: |
+    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+    aws ec2 describe-flow-logs --output json | jq '.FlowLogs[].FlowLogId'
+  register: flowlogsids
+
+- set_fact: flowlogs_ids="{{ flowlogsids.stdout|to_json }}"
+
+#- name: purge any existing cspm flow logs
+#  shell: |
+#    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+#    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+#    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+#    flow_log_id=`aws ec2 describe-flow-logs --filter Name=log-group-name,Values=cspm_log_group --output json | jq '.FlowLogs[].FlowLogId' | awk -F '["]' '{print $2}'`
+#    aws ec2 delete-flow-logs --flow-log-id $flow_log_id
+#  no_log: true
+
+- name: 3.9 Ensure VPC flow logging is enabled in all VPCs
+  shell: |
+    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+    aws ec2 create-flow-logs --resource-type VPC --resource-ids {{ item.VpcId }} --traffic-type ALL --log-group-name {{ vpc_flow_logs.log_group_name }} --deliver-logs-permission-arn {{ vpc_flowlog_role.iam_role.arn }}
+#  no_log: true
+#  when: item.VpcId is not in flowlogs
+  with_items: "{{ vpcs }}"
+  ignore_errors: yes
+
+ 
+#- name: 3.10 & 3.11 Ensure that Object-level logging for read & write events is enabled for S3 bucket
+#  shell: |
+#    export AWS_ACCESS_KEY_ID={{ assumed_role_credentials.Credentials.AccessKeyId }}
+#    export AWS_SECRET_ACCESS_KEY={{ assumed_role_credentials.Credentials.SecretAccessKey }}
+#    export AWS_SESSION_TOKEN={{ assumed_role_credentials.Credentials.SessionToken }}
+#    aws cloudtrail put-event-selectors --region {{ lookup('env', 'AWS_DEFAULT_REGION') }} --trail-name {{ cspmcloudtrail.Trail.Name }} --event-selectors '[{ "ReadWriteType": "All", "IncludeManagementEvents":true, "DataResources": [{ "Type": "AWS::S3::Object", "Values": ["arn:aws:s3"] }] }]'
+
+#***flowlogs
+# bash-4.4# aws ec2 describe-flow-logs --output json
+# {
+#     "FlowLogs": [
+#         {
+#             "CreationTime": "2019-08-08T15:17:54.046Z",
+#             "DeliverLogsPermissionArn": "arn:aws:iam::754178634667:role/flowlogsRole",
+#             "DeliverLogsStatus": "SUCCESS",
+#             "FlowLogId": "fl-0c3ed480a099d15fc",
+#             "FlowLogStatus": "ACTIVE",
+#             "LogGroupName": "SECDEVVPCLogGrp",
+#             "ResourceId": "vpc-0e9f21846db7dba97",
+#             "TrafficType": "ALL",
+#             "LogDestinationType": "cloud-watch-logs",
+#             "LogDestination": "arn:aws:logs:us-east-1:754178634667:log-group:SECDEVVPCLogGrp",
+#             "LogFormat": "${version} ${account-id} ${interface-id} ${srcaddr} ${dstaddr} ${srcport} ${dstport} ${protocol} ${packets} ${bytes} ${start} ${end} ${action} ${log-status}",
+#             "Tags": [],
+#             "MaxAggregationInterval": 600
+#         },
+#         {
+#             "CreationTime": "2021-10-14T19:34:35.724Z",
+#             "DeliverLogsPermissionArn": "arn:aws:iam::754178634667:role/cspm_vpc_flowlog_role",
+#             "DeliverLogsStatus": "SUCCESS",
+#             "FlowLogId": "fl-0609be2c364368d8b",
+#             "FlowLogStatus": "ACTIVE",
+#             "LogGroupName": "cspm_log_group",
+#             "ResourceId": "vpc-d2960ca8",
+#             "TrafficType": "ALL",
+#             "LogDestinationType": "cloud-watch-logs",
+#             "LogFormat": "${version} ${account-id} ${interface-id} ${srcaddr} ${dstaddr} ${srcport} ${dstport} ${protocol} ${packets} ${bytes} ${start} ${end} ${action} ${log-status}",
+#             "Tags": [],
+#             "MaxAggregationInterval": 600
+#         }
+#     ]
+# }

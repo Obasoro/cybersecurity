@@ -1,0 +1,56 @@
+---
+# - name: Create Cloudtrail s3 bucket
+#   amazon.aws.s3_bucket:
+#     aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+#     aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+#     security_token: "{{ assumed_role.sts_creds.session_token }}"
+#     name: cspm{{ lookup('env', 'AWS_ACCOUNT_TARGET') }}bucket
+#     region: "{{ lookup('env', 'AWS_DEFAULT_REGION') }}"
+#     state: present
+#   register: cts3bucket
+
+# - name: Update bucket policy
+#   amazon.aws.s3_bucket:
+#     aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+#     aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+#     security_token: "{{ assumed_role.sts_creds.session_token }}"
+#     name: cspm{{ lookup('env', 'AWS_ACCOUNT_TARGET') }}bucket
+#     state: present
+#     policy: "{{ lookup('template', '/runner/project/roles/AWS_BASELINE/tasks/templates/cspm_cts3_policy.j2') | to_json }}"
+
+- name: Create Firehose s3 bucket
+  amazon.aws.s3_bucket:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    name: cspm{{ lookup('env', 'AWS_ACCOUNT_TARGET') }}firehosebucket
+    state: present
+  register: cspmfirehosebucket
+
+- name: Create Config bucket
+  amazon.aws.s3_bucket:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    name: config-bucket-{{ lookup('env', 'AWS_ACCOUNT_TARGET') }}
+    state: present
+  register: configbucket
+
+- name: Update bucket policy
+  amazon.aws.s3_bucket:
+    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+    security_token: "{{ assumed_role.sts_creds.session_token }}"
+    name: config-bucket-{{ lookup('env', 'AWS_ACCOUNT_TARGET') }}
+    state: present
+    policy: "{{ lookup('template', '/runner/project/roles/AWS_BASELINE/tasks/templates/cspm_configbucket_policy.j2') | to_json }}"
+
+#- name: Create S3 bucket access logging Target bucket
+#  amazon.aws.s3_bucket:
+#    aws_access_key: "{{ assumed_role.sts_creds.access_key }}"
+#    aws_secret_key: "{{ assumed_role.sts_creds.secret_key }}"
+#    security_token: "{{ assumed_role.sts_creds.session_token }}"
+#    name: cspm-{{ lookup('env', 'AWS_ACCOUNT_TARGET') }}-s3accessloggging-bucket
+#    state: present
+#  register: s3accessloggingbucket
+
